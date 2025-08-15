@@ -189,7 +189,7 @@
                 <div class="bg-blue-50 p-4 rounded-lg text-center"><div class="text-blue-600 text-sm font-medium">총 영수증</div><div class="text-2xl font-bold text-blue-800" id="totalReceipts">0</div></div>
                 <div class="bg-green-50 p-4 rounded-lg text-center"><div class="text-green-600 text-sm font-medium">총 지출 (USD)</div><div class="text-2xl font-bold text-green-800" id="totalSpentUSD">$0.00</div></div>
                 <div class="bg-purple-50 p-4 rounded-lg text-center"><div class="text-purple-600 text-sm font-medium">총 지출 (KRW)</div><div class="text-2xl font-bold text-purple-800" id="totalSpentKRW">₩0</div></div>
-                <div class="bg-yellow-50 p-4 rounded-lg text-center"><div class="text-yellow-600 text-sm font-medium">평균 지출 (USD)</div><div class="text-2xl font-bold text-yellow-800" id="averageSpent">$0.00</div></div>
+                <div class="bg-yellow-50 p-4 rounded-lg text-center"><div class="text-yellow-600 text-sm font-medium">평균 지출</div><div class="text-2xl font-bold text-yellow-800" id="averageSpent">$0.00</div></div>
             </div>
             <div class="stats-grid">
                 <div class="bg-gray-50 p-4 rounded-lg"><h3 class="text-lg font-semibold mb-2">항목별 지출 분포</h3><div class="chart-container"><canvas id="categoryChart"></canvas></div></div>
@@ -386,11 +386,12 @@
             const totalSpentUSD = receipts.reduce((sum, r) => sum + safeParseFloat(r.totalUsd), 0);
             const totalSpentKRW = receipts.reduce((sum, r) => sum + safeParseFloat(r.totalKrw), 0);
             const averageSpentUSD = totalReceiptsCount > 0 ? totalSpentUSD / totalReceiptsCount : 0;
+            const averageSpentKRW = totalReceiptsCount > 0 ? totalSpentKRW / totalReceiptsCount : 0;
             
             dom.totalReceipts.textContent = totalReceiptsCount;
             dom.totalSpentUSD.textContent = `$${safeToFixed(totalSpentUSD, 2)}`;
             dom.totalSpentKRW.textContent = `₩${Math.round(totalSpentKRW).toLocaleString()}`;
-            dom.averageSpent.textContent = `$${safeToFixed(averageSpentUSD, 2)}`;
+            dom.averageSpent.textContent = `$${safeToFixed(averageSpentUSD, 2)} (₩${Math.round(averageSpentKRW).toLocaleString()})`;
         }
         
         function updateCharts() {
