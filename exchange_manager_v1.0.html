@@ -91,13 +91,16 @@
 
             <!-- 환율 계산기 -->
             <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
-                <div class="flex justify-between items-center mb-6">
-                     <h2 class="text-xl font-semibold text-slate-700 w-1/4">환율 계산기</h2>
-                     <div class="grid grid-cols-2 gap-4 w-3/4">
-                        <h3 class="text-md font-semibold text-slate-600 text-center">미국 달러 (USD)</h3>
-                        <h3 class="text-md font-semibold text-slate-600 text-center">한국 원화 (KRW)</h3>
-                     </div>
-                </div>
+                <div class="flex flex-wrap justify-between items-center mb-6 gap-y-4">
+                    <div class="flex items-center gap-4">
+                        <h2 class="text-xl font-semibold text-slate-700">환율 계산기</h2>
+                        <select id="rate-date-select" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2"></select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 w-full sm:w-1/2">
+                       <h3 class="text-md font-semibold text-slate-600 text-center">미국 달러 (USD)</h3>
+                       <h3 class="text-md font-semibold text-slate-600 text-center">한국 원화 (KRW)</h3>
+                    </div>
+               </div>
 
                 <div class="space-y-4">
                     <!-- Subtotal -->
@@ -181,6 +184,7 @@
             const monthlyTableLoader = document.getElementById('monthly-table-loader');
             const monthlyTableContainer = document.getElementById('monthly-table-container');
             const converterError = document.getElementById('converter-error');
+            const rateDateSelect = document.getElementById('rate-date-select');
 
             // 계산기 입력 필드
             const usdSubtotal = document.getElementById('usd-subtotal');
@@ -192,7 +196,7 @@
             const usdTotal = document.getElementById('usd-total');
             const krwTotal = document.getElementById('krw-total');
 
-            let latestKrwRate = null;
+            let calculationRate = null;
 
             // 숫자 포맷팅 함수
             const formatDisplayCurrency = (amount, currency) => {
@@ -233,9 +237,15 @@
                 try {
                     const data = await fetchRate(API_URL_LATEST);
                     if (data && data.rates && data.rates.KRW) {
-                        latestKrwRate = data.rates.KRW;
-                        currentRateEl.textContent = formatDisplayCurrency(latestKrwRate, 'KRW_rate');
+                        calculationRate = data.rates.KRW;
+                        currentRateEl.textContent = formatDisplayCurrency(calculationRate, 'KRW_rate');
                         lastUpdatedEl.textContent = formatDateWithDay(data.date);
+                        
+                        const option = document.createElement('option');
+                        option.value = calculationRate;
+                        option.textContent = formatDateWithDay(data.date);
+                        rateDateSelect.appendChild(option);
+
                         currentRateLoader.classList.add('hidden');
                         currentRateDisplay.classList.remove('hidden');
                         setupConverter();
@@ -264,7 +274,7 @@
             // 환율 표 채우기
             async function populateRateTable(element, loader, container, days, isWeekly) {
                 const today = new Date();
-                const promises = Array.from({ length: days }, (_, i) => {
+                const datePromises = Array.from({ length: days }, (_, i) => {
                     const date = new Date(today);
                     date.setDate(today.getDate() - (isWeekly ? i : i * 7));
                     const formattedDate = formatDate(date);
@@ -272,23 +282,40 @@
                 });
 
                 element.innerHTML = '';
-                for (const item of promises) {
-                    const rate = await item.promise;
+                
+                const results = await Promise.all(datePromises.map(p => p.promise));
+
+                results.forEach((rate, i) => {
                     if (rate) {
+                        const itemDate = datePromises[i].date;
                         element.innerHTML += `
                             <tr class="border-b border-slate-200 hover:bg-slate-50">
-                                <td class="px-4 py-3 font-medium text-slate-900">${formatDateWithDay(item.date)}</td>
+                                <td class="px-4 py-3 font-medium text-slate-900">${formatDateWithDay(itemDate)}</td>
                                 <td class="px-4 py-3 text-right">${formatDisplayCurrency(rate, 'KRW_rate')}</td>
                             </tr>`;
+                        
+                        if (isWeekly && i > 0) {
+                             const option = document.createElement('option');
+                             option.value = rate;
+                             option.textContent = formatDateWithDay(itemDate);
+                             rateDateSelect.appendChild(option);
+                        }
                     }
-                }
+                });
+
                 loader.classList.add('hidden');
                 container.classList.remove('hidden');
+            }
+            
+            function recalculateAllFromUsd() {
+                convert('usd-subtotal');
+                convert('usd-tax');
+                convert('usd-tip');
             }
 
             // 계산기 설정
             function setupConverter() {
-                if (!latestKrwRate) return;
+                if (!calculationRate) return;
                 updateTotals(); // 초기 총액 계산
                 
                 [usdSubtotal, krwSubtotal, usdTax, krwTax, usdTip, krwTip].forEach(input => {
@@ -302,10 +329,15 @@
                         e.target.value = value.toFixed(2);
                     });
                 });
+
+                rateDateSelect.addEventListener('change', (e) => {
+                    calculationRate = parseFloat(e.target.value);
+                    recalculateAllFromUsd();
+                });
             }
 
             function convert(sourceId) {
-                if (!latestKrwRate) return;
+                if (!calculationRate) return;
                 
                 const getNumericValue = (el) => parseFloat(String(el.value).replace(/,/g, '')) || 0;
 
@@ -322,10 +354,10 @@
                     let targetValue;
 
                     if (sourceInfo.isUsd) {
-                        targetValue = sourceValue * latestKrwRate;
+                        targetValue = sourceValue * calculationRate;
                         sourceInfo.target.value = formatDisplayCurrency(targetValue, 'KRW');
                     } else {
-                        targetValue = sourceValue / latestKrwRate;
+                        targetValue = sourceValue / calculationRate;
                         // KRW 입력 시 USD 필드는 blur 이벤트에서 포맷팅되므로 toFixed만 적용
                         sourceInfo.target.value = targetValue.toFixed(2);
                     }
@@ -347,10 +379,12 @@
             }
 
             // 앱 초기화
-            function init() {
-                fetchLatestRate();
-                populateRateTable(weeklyRatesBody, weeklyTableLoader, weeklyTableContainer, 7, true);
-                populateRateTable(monthlyRatesBody, monthlyTableLoader, monthlyTableContainer, 7, false);
+            async function init() {
+                await fetchLatestRate();
+                // 주간 데이터는 드롭다운도 채워야 하므로 먼저 실행
+                await populateRateTable(weeklyRatesBody, weeklyTableLoader, weeklyTableContainer, 7, true);
+                // 월간 데이터는 나중에 실행
+                await populateRateTable(monthlyRatesBody, monthlyTableLoader, monthlyTableContainer, 7, false);
             }
 
             init();
