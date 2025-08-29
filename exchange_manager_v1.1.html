@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USD/KRW 환율 계산기 v1.1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-4xl">
+        <!-- 헤더 -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold text-slate-900">USD/KRW 환율 계산기 v1.1</h1>
+            <p class="text-slate-500 mt-2">최신 환율 변동을 확인하고 금액을 변환합니다.</p>
+            <p class="text-sm text-slate-400 mt-1">by Brian Myungsun Lee (leeclean@gmail.com) / 2025.09</p>
+        </header>
+
+        <main>
+            <!-- 환율 정보 카드 -->
+            <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200 mb-8">
+                <div id="current-rate-loader" class="flex justify-center items-center h-16"><div class="loader"></div></div>
+                <div id="current-rate-display" class="hidden">
+                    <div class="flex justify-between items-baseline">
+                        <h2 class="text-xl font-semibold text-slate-700">현재 환율</h2>
+                        <p class="text-2xl sm:text-3xl font-bold text-blue-600">1 USD = <span id="current-rate"></span> KRW</p>
+                    </div>
+                    <p class="text-sm text-slate-500 mt-2 text-right">업데이트: <span id="last-updated"></span></p>
+                </div>
+            </div>
+
+            <!-- 환율 변동 표 -->
+            <div class="grid md:grid-cols-2 gap-8 mb-8">
+                <!-- 주간 환율 -->
+                <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+                    <h3 class="text-lg font-semibold mb-4 text-slate-700">주간 환율 변동 (최근 7일)</h3>
+                    <div id="weekly-table-loader" class="flex justify-center items-center h-48"><div class="loader"></div></div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm text-left text-slate-500 hidden" id="weekly-table-container">
+                            <thead class="text-xs text-slate-700 uppercase bg-slate-100">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3 rounded-l-lg">날짜</th>
+                                    <th scope="col" class="px-4 py-3 rounded-r-lg text-right">환율 (KRW)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="weekly-rates"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- 월간 환율 -->
+                <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+                    <h3 class="text-lg font-semibold mb-4 text-slate-700">월간 환율 변동 (최근 7주)</h3>
+                    <div id="monthly-table-loader" class="flex justify-center items-center h-48"><div class="loader"></div></div>
+                     <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm text-left text-slate-500 hidden" id="monthly-table-container">
+                            <thead class="text-xs text-slate-700 uppercase bg-slate-100">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3 rounded-l-lg">날짜 (주 단위)</th>
+                                    <th scope="col" class="px-4 py-3 rounded-r-lg text-right">환율 (KRW)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="monthly-rates"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 환율 계산기 -->
+            <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+                <div class="flex items-center gap-4 mb-4">
+                    <h2 class="text-xl font-semibold text-slate-700">환율 계산기</h2>
+                    <select id="rate-date-select" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2"></select>
+                    <span id="selected-rate-display" class="text-sm text-slate-500 font-medium"></span>
+                </div>
+                <div class="flex items-center gap-4 mb-2">
+                    <div class="w-1/4"></div> <!-- 정렬용 스페이서 -->
+                    <div class="w-3/4 grid grid-cols-2 gap-4">
+                       <h3 class="text-md font-semibold text-slate-600 text-center">미국 달러 (USD)</h3>
+                       <h3 class="text-md font-semibold text-slate-600 text-center">한국 원화 (KRW)</h3>
+                    </div>
+               </div>
+                <div class="space-y-4">
+                    <!-- 항목들 -->
+                    <div id="calculator-fields"></div>
+                    <!-- 구분선 -->
+                    <hr class="my-4 border-slate-200">
+                    <!-- 총계 -->
+                    <div class="flex items-center gap-4">
+                        <label class="w-1/4 text-xl font-bold text-slate-800">Total:</label>
+                        <div class="w-3/4 grid grid-cols-2 gap-4">
+                            <div class="text-left text-xl font-bold text-blue-600 pl-8" id="usd-total">$0.00</div>
+                            <div class="text-right text-xl font-bold text-blue-600 pr-3" id="krw-total">₩0</div>
+                        </div>
+                    </div>
+                </div>
+                 <div id="converter-error" class="text-red-500 text-sm mt-4 text-center hidden">환율 정보를 불러오는 데 실패했습니다. 잠시 후 다시 시도해주세요.</div>
+            </div>
+        </main>
+        
+        <footer class="text-center mt-8 text-sm text-slate-400">
+            <p>환율 정보는 Frankfurter API를 기반으로 제공됩니다.</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- CONFIGURATION & STATE ---
+            const API_BASE_URL = 'https://api.frankfurter.app/';
+            const state = {
+                /** @type {number|null} 계산에 사용될 현재 환율 */
+                calculationRate: null,
+                /** @type {Map<string, number>} 과거 환율 데이터 캐시 */
+                ratesCache: new Map(),
+            };
+
+            // --- DOM ELEMENT SELECTORS (중앙 관리) ---
+            const SELECTORS = {
+                currentRate: '#current-rate', lastUpdated: '#last-updated',
+                weeklyRatesBody: '#weekly-rates', monthlyRatesBody: '#monthly-rates',
+                rateDateSelect: '#rate-date-select', selectedRateDisplay: '#selected-rate-display',
+                currentRateLoader: '#current-rate-loader', currentRateDisplay: '#current-rate-display',
+                weeklyTableLoader: '#weekly-table-loader', weeklyTableContainer: '#weekly-table-container',
+                monthlyTableLoader: '#monthly-table-loader', monthlyTableContainer: '#monthly-table-container',
+                calculatorFields: '#calculator-fields',
+                usdTotal: '#usd-total', krwTotal: '#krw-total',
+                converterError: '#converter-error',
+            };
+            
+            // --- DOM ELEMENT REFERENCES ---
+            const elements = {};
+            for (const key in SELECTORS) {
+                elements[key] = document.querySelector(SELECTORS[key]);
+            }
+            
+            // --- UTILITY FUNCTIONS ---
+
+            /**
+             * 숫자를 통화 형식의 문자열로 변환합니다.
+             * @param {number} amount - 변환할 숫자
+             * @param {'USD'|'KRW'|'KRW_rate'} type - 통화 또는 환율 타입
+             * @returns {string} 포맷팅된 통화 문자열
+             */
+            const formatDisplayCurrency = (amount, type) => {
+                const options = { style: 'decimal' };
+                if (type === 'KRW_rate') {
+                    options.minimumFractionDigits = 2;
+                    options.maximumFractionDigits = 2;
+                } else if (type === 'USD') {
+                    options.minimumFractionDigits = 2;
+                    options.maximumFractionDigits = 2;
+                } else { // KRW
+                    options.minimumFractionDigits = 0;
+                    options.maximumFractionDigits = 0;
+                }
+                return new Intl.NumberFormat(type === 'USD' ? 'en-US' : 'ko-KR', options).format(amount);
+            };
+
+            /**
+             * Date 객체를 'YYYY-MM-DD' 형식의 문자열로 변환합니다.
+             * @param {Date} date - 변환할 Date 객체
+             * @returns {string} 포맷팅된 날짜 문자열
+             */
+            const formatDate = (date) => date.toISOString().split('T')[0];
+
+            /**
+             * 'YYYY-MM-DD' 형식의 문자열을 'YYYY-MM-DD(요일)' 형식으로 변환합니다.
+             * @param {string} dateString - 변환할 날짜 문자열
+             * @returns {string} 요일이 포함된 날짜 문자열
+             */
+            const formatDateWithDay = (dateString) => {
+                const days = ['일', '월', '화', '수', '목', '금', '토'];
+                const date = new Date(dateString + 'T00:00:00Z'); // 타임존 오류 방지를 위해 UTC 기준
+                return `${dateString}(${days[date.getUTCDay()]})`;
+            };
+
+            /**
+             * 입력 요소에서 쉼표를 제거하고 숫자로 변환합니다.
+             * @param {HTMLInputElement} el - 입력 요소
+             * @returns {number} 변환된 숫자 (실패 시 0)
+             */
+            const getNumericValue = (el) => parseFloat(String(el.value).replace(/,/g, '')) || 0;
+
+            // --- API FUNCTIONS ---
+
+            /**
+             * 지정된 URL로 API를 호출하고 JSON 응답을 반환합니다.
+             * @param {string} url - API 요청 URL
+             * @returns {Promise<object|null>} API 응답 데이터 또는 오류 시 null
+             */
+            async function fetchRate(url) {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        if (response.status === 404) return null; // 404는 데이터 없음으로 처리
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                } catch (error) {
+                    console.error(`Fetch error for ${url}:`, error);
+                    throw error;
+                }
+            }
+
+            /**
+             * 특정 날짜의 과거 환율을 가져옵니다. 캐시를 먼저 확인합니다.
+             * @param {string} date - 'YYYY-MM-DD' 형식의 날짜
+             * @returns {Promise<number|null>} 해당 날짜의 환율 또는 null
+             */
+            async function fetchHistoricalRate(date) {
+                if (state.ratesCache.has(date)) {
+                    return state.ratesCache.get(date);
+                }
+                try {
+                    const data = await fetchRate(`${API_BASE_URL}${date}?from=USD&to=KRW`);
+                    const rate = data?.rates?.KRW ?? null;
+                    if (rate) state.ratesCache.set(date, rate);
+                    return rate;
+                } catch (error) {
+                    return null;
+                }
+            }
+
+            // --- UI UPDATE FUNCTIONS ---
+
+            /**
+             * UI 요소를 보이거나 숨깁니다.
+             * @param {HTMLElement} element - 대상 요소
+             * @param {boolean} show - 보일지 여부
+             */
+            const toggleElementVisibility = (element, show) => {
+                element.classList.toggle('hidden', !show);
+            };
+
+            /**
+             * 선택된 환율 정보를 계산기 드롭다운 옆에 표시합니다.
+             * @param {number|null} rate - 표시할 환율
+             */
+            function updateSelectedRateDisplay(rate) {
+                if (rate) {
+                    const formattedRate = formatDisplayCurrency(rate, 'KRW_rate');
+                    elements.selectedRateDisplay.textContent = `(1 USD = ${formattedRate} KRW)`;
+                } else {
+                    elements.selectedRateDisplay.textContent = '';
+                }
+            }
+
+            /**
+             * 환율 표를 데이터로 채웁니다. (DOM 성능 최적화)
+             * @param {HTMLElement} tbody - 데이터를 채울 tbody 요소
+             * @param {HTMLElement} loader - 로딩 스피너 요소
+             * @param {HTMLElement} container - 테이블 컨테이너 요소
+             * @param {number} days - 조회할 기간 (일 수)
+             * @param {boolean} isWeekly - 주간/월간 모드 구분
+             */
+            async function populateRateTable(tbody, loader, container, days, isWeekly) {
+                const today = new Date();
+                const datePromises = Array.from({ length: days }, (_, i) => {
+                    const date = new Date(today);
+                    date.setUTCDate(today.getUTCDate() - (isWeekly ? i : i * 7));
+                    const formattedDate = formatDate(date);
+                    return { date: formattedDate, promise: fetchHistoricalRate(formattedDate) };
+                });
+
+                const results = await Promise.all(datePromises.map(p => p.promise));
+                const rowsHtml = [];
+                const options = [];
+
+                results.forEach((rate, i) => {
+                    if (rate) {
+                        const itemDate = datePromises[i].date;
+                        rowsHtml.push(`
+                            <tr class="border-b border-slate-200 hover:bg-slate-50 cursor-pointer" data-date="${itemDate}" data-rate="${rate}">
+                                <td class="px-4 py-3 font-medium text-slate-900">${formatDateWithDay(itemDate)}</td>
+                                <td class="px-4 py-3 text-right">${formatDisplayCurrency(rate, 'KRW_rate')}</td>
+                            </tr>`);
+                        if (isWeekly) {
+                            options.push(`<option value="${itemDate}" data-rate="${rate}">${formatDateWithDay(itemDate)}</option>`);
+                        }
+                    }
+                });
+
+                tbody.innerHTML = rowsHtml.join('');
+                if (isWeekly) elements.rateDateSelect.innerHTML = options.join('');
+
+                toggleElementVisibility(loader, false);
+                toggleElementVisibility(container, true);
+            }
+            
+            // --- CALCULATOR LOGIC ---
+            
+            /**
+             * 계산기 입력 필드를 동적으로 생성합니다.
+             */
+            function createCalculatorFields() {
+                const fields = [
+                    { id: 'subtotal', label: 'Subtotal:' },
+                    { id: 'tax', label: 'Tax:' },
+                    { id: 'tip', label: 'Tip:' },
+                ];
+                
+                const fieldsHtml = fields.map(field => `
+                    <div class="flex items-center gap-4">
+                        <label class="w-1/4 text-md font-medium text-slate-600">${field.label}</label>
+                        <div class="w-3/4 grid grid-cols-2 gap-4">
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">$</span>
+                                <input type="number" step="0.01" id="usd-${field.id}" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-8 p-2.5 text-left" placeholder="0.00">
+                            </div>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">₩</span>
+                                <input type="text" inputmode="decimal" id="krw-${field.id}" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-8 p-2.5 text-right" placeholder="0">
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                elements.calculatorFields.innerHTML = fieldsHtml;
+            }
+
+            /**
+             * 총액을 다시 계산하고 UI를 업데이트합니다.
+             */
+            function updateTotals() {
+                const totalUsd = getNumericValue(document.getElementById('usd-subtotal')) + getNumericValue(document.getElementById('usd-tax')) + getNumericValue(document.getElementById('usd-tip'));
+                const totalKrw = getNumericValue(document.getElementById('krw-subtotal')) + getNumericValue(document.getElementById('krw-tax')) + getNumericValue(document.getElementById('krw-tip'));
+
+                elements.usdTotal.textContent = `$${formatDisplayCurrency(totalUsd, 'USD')}`;
+                elements.krwTotal.textContent = `₩${formatDisplayCurrency(totalKrw, 'KRW')}`;
+            }
+
+            /**
+             * 한 통화의 입력을 다른 통화로 변환합니다.
+             * @param {string} sourceId - 입력이 발생한 요소의 ID
+             */
+            function convert(sourceId) {
+                if (!state.calculationRate) return;
+                
+                const type = sourceId.split('-')[1]; // subtotal, tax, tip
+                const sourceCurrency = sourceId.split('-')[0]; // usd, krw
+                
+                const sourceElement = document.getElementById(sourceId);
+                const sourceValue = getNumericValue(sourceElement);
+                
+                if (sourceCurrency === 'usd') {
+                    const targetElement = document.getElementById(`krw-${type}`);
+                    targetElement.value = formatDisplayCurrency(sourceValue * state.calculationRate, 'KRW');
+                } else { // krw
+                    const targetElement = document.getElementById(`usd-${type}`);
+                    targetElement.value = (sourceValue / state.calculationRate).toFixed(2);
+                }
+                updateTotals();
+            }
+
+            // --- EVENT HANDLERS ---
+            
+            /**
+             * 환율 표의 행 클릭 이벤트를 처리합니다.
+             * @param {Event} e - 클릭 이벤트 객체
+             */
+            function handleTableRowClick(e) {
+                const row = e.target.closest('tr');
+                if (!row?.dataset.date) return;
+
+                const { date, rate } = row.dataset;
+                let optionExists = elements.rateDateSelect.querySelector(`option[value="${date}"]`);
+
+                if (!optionExists) {
+                    const newOption = document.createElement('option');
+                    newOption.value = date;
+                    newOption.dataset.rate = rate;
+                    newOption.textContent = formatDateWithDay(date);
+                    elements.rateDateSelect.appendChild(newOption);
+
+                    const options = Array.from(elements.rateDateSelect.options);
+                    options.sort((a, b) => b.value.localeCompare(a.value));
+                    elements.rateDateSelect.innerHTML = '';
+                    options.forEach(option => elements.rateDateSelect.appendChild(option));
+                }
+                
+                elements.rateDateSelect.value = date;
+                elements.rateDateSelect.dispatchEvent(new Event('change'));
+            }
+
+            /**
+             * 계산기 입력 필드에 대한 이벤트 리스너를 설정합니다. (이벤트 위임 활용)
+             */
+            function setupConverterListeners() {
+                elements.calculatorFields.addEventListener('input', (e) => {
+                    if (e.target.tagName === 'INPUT') {
+                        convert(e.target.id);
+                    }
+                });
+
+                elements.calculatorFields.addEventListener('blur', (e) => {
+                    if (e.target.id.startsWith('usd-')) {
+                        const value = getNumericValue(e.target);
+                        e.target.value = value.toFixed(2);
+                    }
+                }, true); // Use capture phase to ensure it runs before other blur listeners if any
+
+                elements.rateDateSelect.addEventListener('change', (e) => {
+                    const selectedOption = e.target.options[e.target.selectedIndex];
+                    const newRate = parseFloat(selectedOption.dataset.rate);
+                    state.calculationRate = newRate;
+                    updateSelectedRateDisplay(newRate);
+                    // USD 필드 기준으로 모든 값 다시 계산
+                    convert('usd-subtotal');
+                    convert('usd-tax');
+                    convert('usd-tip');
+                });
+            }
+
+            // --- INITIALIZATION ---
+            
+            /**
+             * 애플리케이션을 초기화하는 메인 함수
+             */
+            async function init() {
+                createCalculatorFields();
+                setupConverterListeners();
+
+                try {
+                    const latestData = await fetchRate(`${API_BASE_URL}latest?from=USD&to=KRW`);
+                    if (!latestData?.rates?.KRW) throw new Error('최신 환율 정보를 가져올 수 없습니다.');
+                    
+                    state.calculationRate = latestData.rates.KRW;
+                    elements.currentRate.textContent = formatDisplayCurrency(state.calculationRate, 'KRW_rate');
+                    elements.lastUpdated.textContent = formatDateWithDay(latestData.date);
+                    updateSelectedRateDisplay(state.calculationRate);
+                    
+                    toggleElementVisibility(elements.currentRateLoader, false);
+                    toggleElementVisibility(elements.currentRateDisplay, true);
+
+                    // 주간/월간 데이터 병렬로 가져오기
+                    await Promise.all([
+                        populateRateTable(elements.weeklyRatesBody, elements.weeklyTableLoader, elements.weeklyTableContainer, 7, true),
+                        populateRateTable(elements.monthlyRatesBody, elements.monthlyTableLoader, elements.monthlyTableContainer, 7, false)
+                    ]);
+                    
+                    elements.weeklyRatesBody.addEventListener('click', handleTableRowClick);
+                    elements.monthlyRatesBody.addEventListener('click', handleTableRowClick);
+
+                } catch (error) {
+                    console.error('초기화 실패:', error);
+                    toggleElementVisibility(elements.currentRateLoader, true);
+                    elements.currentRateLoader.innerHTML = '<p class="text-red-500 text-center">데이터 로딩 실패</p>';
+                    toggleElementVisibility(elements.converterError, true);
+                }
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>
